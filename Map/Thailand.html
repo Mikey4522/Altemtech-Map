@@ -1,0 +1,219 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Thailand Projects — Year Filter (with categories)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nouislider@15.8.1/dist/nouislider.min.css"/>
+  <style>
+    :root{
+      /* keep slider aligned with Bangkok */
+      --year-box-offset: 270px;
+      --outside-bg:#f6f7fb;
+    }
+    html, body { height:100%; margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
+    #map { height:100%; width:100%; background:var(--outside-bg); }
+
+    /* Year control (same as Bangkok) */
+    .leaflet-top.leaflet-left .year-control { margin-left: var(--year-box-offset); }
+    .year-control{
+      background:#fff; border:1px solid #e5e7eb; border-radius:12px;
+      padding:10px; width:200px; box-shadow:0 8px 24px rgba(0,0,0,.08); line-height:1.1;
+      margin:10px;
+    }
+    .year-control h4{ margin:0 0 8px; font-size:13px; font-weight:700; }
+    .row{ display:flex; gap:8px; align-items:center; margin:6px 0; }
+    .row label{ font-size:12px; color:#374151; width:36px; }
+    .row input[type="number"]{ width:90px; padding:6px 8px; font-size:12px; border:1px solid #d1d5db; border-radius:8px; }
+    #yearSlider{ margin:6px 0 2px; }
+    button{ width:100%; margin-top:6px; padding:7px 10px; font-size:12px; border:1px solid #d1d5db; border-radius:8px; background:#f9fafb; cursor:pointer; }
+    button:hover{ background:#f3f4f6; }
+
+    .popup-title a { color:#111827; text-decoration:none; }
+    .popup-title a:hover { text-decoration:underline; }
+
+    /* Boxed legend — same look/placement as Bangkok (under top-right button) */
+    .leaflet-control.legend { background:transparent; border:0; box-shadow:none; margin-top:72px; margin-right:10px; }
+    .legend-box{
+      background:#fff; border:1px solid #e5e7eb; border-radius:12px;
+      padding:10px 12px; box-shadow:0 8px 24px rgba(0,0,0,.08); font-size:12px;
+    }
+    .legend-item{ display:flex; align-items:center; gap:8px; margin:4px 0; }
+    .legend-swatch{ width:12px; height:12px; border-radius:999px; display:inline-block; box-shadow:0 0 0 2px rgba(0,0,0,.04) inset; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/nouislider@15.8.1/dist/nouislider.min.js"></script>
+
+  <script>
+    /* Category colors — identical to Bangkok */
+    const CATEGORY_STYLE = {
+      "D-wall":     { fill:"#ff6a3d", stroke:"#cc4d22" },
+      "Pile-wall":  { fill:"#10b981", stroke:"#0e8967" },
+      "Sheet Pile": { fill:"#6366f1", stroke:"#4348c9" }
+    };
+
+    const CURRENT_YEAR = new Date().getFullYear();
+    const site = 'https://altemtech.com/portfolio-items/';
+
+    const projects = [
+      { name:"True Digital Park (Phase II)", lat:13.685581, lng:100.611308, start:2019, end:2021, type:"D-wall",     url:site+"true-digital-park-phase-ii/" },
+      { name:"Emsphere & Emlive",           lat:13.732166, lng:100.566047, start:2018, end:2018, type:"D-wall",     url:site+"emsphere-emlive/" },
+      { name:"One City Centre (OCC)",       lat:13.743039, lng:100.546853, start:2019, end:2021, type:"D-wall",     url:site+"one-city-centre/" },
+      { name:"One Bangkok",                 lat:13.726830, lng:100.547200, start:2018, end:2021, type:"D-wall",     url:site+"one-bangkok/" },
+      { name:"140 Wireless",                lat:13.739300, lng:100.546900, start:2020, end:2020, type:"D-wall",     url:site+"140-wireless/" },
+      { name:"The New National Parliament House", lat:13.795823, lng:100.517282, start:2014, end:2016, type:"Pile-wall", url:site+"the-new-national-parliament-house/" },
+      { name:"BITEC (Bangna)",              lat:13.669170, lng:100.610000, start:2011, end:2014, type:"Pile-wall",  url:site+"bitec/" },
+      { name:"TPP Healthcare International",lat:13.721886, lng:100.556262, start:2018, end:2019, type:"D-wall",     url:site+"tpp-healthcare-international-hospital/" },
+      { name:"Terminal 21 (Asok)",          lat:13.737000, lng:100.560600, start:2008, end:2009, type:"D-wall",     url:site+"terminal-21/" },
+      { name:"Siam Square One",             lat:13.739990, lng:100.526550, start:2012, end:2012, type:"Pile-wall",  url:site+"sindhorn-midtown/" },
+      { name:"Rosewood Hotel Bangkok",      lat:13.744640, lng:100.548640, start:2015, end:2016, type:"D-wall",     url:site+"rosewood-bangkok/" },
+      { name:"Muang Thai Life Assurance Head Office", lat:13.780000, lng:100.573000, start:2019, end:CURRENT_YEAR, type:"Sheet Pile", url:site+"muang-thai-life-assurance-head-office/" },
+      { name:"THE UNICORN (Phaya Thai)",    lat:13.756000, lng:100.533000, start:2018, end:CURRENT_YEAR, type:"D-wall", url:site+"the-unicorn/" },
+      { name:"MRT Connection (Samyan)",     lat:13.734000, lng:100.529000, start:2019, end:2019, type:"Sheet Pile", url:site+"mrt-connection-samyan/" },
+      { name:"UOB Head Office (Sathon)",    lat:13.720448, lng:100.527311, start:2018, end:CURRENT_YEAR, type:"D-wall", url:site+"uob-head-office/" },
+      { name:"Sindhorn Midtown",            lat:13.741388, lng:100.542920, start:2016, end:2017, type:"D-wall",     url:site+"sindhorn-midtown/" },
+      { name:"Four Seasons Private Residences Bangkok", lat:13.700803, lng:100.492336, start:2015, end:2018, type:"Pile-wall", url:site+"four-seasons-private-residence/" },
+      { name:"Suvarnabhumi Airport Expansion (South Tunnel)", lat:13.692000, lng:100.750000, start:2017, end:2017, type:"D-wall", url:site+"suvarnabhumi-airport-expansion-south-tunnel/" }
+    ];
+
+    const map = L.map('map', { zoomSnap: 0.25, attributionControl: false });
+    const dotLayer = L.layerGroup().addTo(map);
+
+    const TH_URL = 'https://raw.githubusercontent.com/johan/world.geo.json/master/countries/THA.geo.json';
+
+    (async function start() {
+      const thaiGeo = await fetch(TH_URL, { cache:'no-store' }).then(r => r.json());
+
+      L.geoJSON(thaiGeo, { style: { color:'#2f8269', weight:2, fillColor:'#cfeee4', fillOpacity:1 } })
+        .addTo(map);
+
+      const TH_BOUNDS = L.geoJSON(thaiGeo).getBounds();
+      map.fitBounds(TH_BOUNDS, { padding: [20,20] });
+      map.setMaxBounds(TH_BOUNDS.pad(0.15));
+      map.options.minZoom = map.getZoom();
+      map.on('drag', () => map.panInsideBounds(map.options.maxBounds, { animate: true }));
+
+      addYearControl();
+      addLegend(map);   // ⬅️ legend added here (same position as Bangkok)
+      initFilter();
+      setTimeout(sendBangkokCentroidPosition, 0);
+    })();
+
+    function addYearControl() {
+      const YearControl = L.Control.extend({
+        options: { position: 'topleft' },
+        onAdd: function () {
+          const div = L.DomUtil.create('div', 'year-control');
+          div.innerHTML = `
+            <h4>Years</h4>
+            <div id="yearSlider"></div>
+            <div class="row"><label>From</label><input id="minYear" type="number" step="1"></div>
+            <div class="row"><label>To</label><input id="maxYear" type="number" step="1"></div>
+            <button id="applyBtn">Apply</button>
+          `;
+          L.DomEvent.disableClickPropagation(div);
+          L.DomEvent.disableScrollPropagation(div);
+          return div;
+        }
+      });
+      map.addControl(new YearControl());
+    }
+
+    /* Boxed legend control (identical to Bangkok) */
+    function addLegend(map){
+      const Legend = L.Control.extend({
+        options:{ position:"topright" },
+        onAdd(){
+          const root = L.DomUtil.create("div","leaflet-control legend");
+          const box  = L.DomUtil.create("div","legend-box", root);
+          box.innerHTML = Object.entries(CATEGORY_STYLE).map(([k,s]) =>
+            `<div class="legend-item">
+               <span class="legend-swatch" style="background:${s.fill}; border:1px solid ${s.stroke}"></span>
+               <span>${k}</span>
+             </div>`
+          ).join("");
+          L.DomEvent.disableClickPropagation(root);
+          L.DomEvent.disableScrollPropagation(root);
+          return root;
+        }
+      });
+      map.addControl(new Legend());
+    }
+
+    function initFilter() {
+      const years = projects.flatMap(p => [p.start, p.end]);
+      const dataMin = Math.min(...years);
+      const dataMax = Math.max(...years);
+
+      const sliderEl = document.getElementById('yearSlider');
+      const minInput  = document.getElementById('minYear');
+      const maxInput  = document.getElementById('maxYear');
+      const applyBtn  = document.getElementById('applyBtn');
+
+      minInput.value = dataMin; minInput.min = dataMin; minInput.max = dataMax;
+      maxInput.value = dataMax; maxInput.min = dataMin; maxInput.max = dataMax;
+
+      noUiSlider.create(sliderEl, {
+        start: [dataMin, dataMax], connect: true, step: 1,
+        range: { min: dataMin, max: dataMax }, tooltips: [true, true], behaviour: 'drag'
+      });
+
+      sliderEl.noUiSlider.on('update', (vals) => {
+        const lo = Math.round(+vals[0]);
+        const hi = Math.round(+vals[1]);
+        minInput.value = lo; maxInput.value = hi;
+        drawDots(lo, hi);
+        sendBangkokCentroidPosition();
+      });
+
+      applyBtn.addEventListener('click', () => {
+        let lo = parseInt(minInput.value, 10);
+        let hi = parseInt(maxInput.value, 10);
+        if (isNaN(lo)) lo = dataMin; if (isNaN(hi)) hi = dataMax;
+        lo = Math.max(dataMin, Math.min(lo, dataMax));
+        hi = Math.max(dataMin, Math.min(hi, dataMax));
+        if (lo > hi) [lo, hi] = [hi, lo];
+        sliderEl.noUiSlider.set([lo, hi]);
+      });
+
+      drawDots(dataMin, dataMax);
+    }
+
+    function drawDots(minYear, maxYear) {
+      dotLayer.clearLayers();
+      projects.forEach(p => {
+        if (p.end < minYear || p.start > maxYear) return;
+        const sty = CATEGORY_STYLE[p.type] || CATEGORY_STYLE["D-wall"];
+        L.circleMarker([p.lat, p.lng], {
+          radius: 7, weight: 1, color: sty.stroke, fillColor: sty.fill, fillOpacity: 0.98
+        })
+        .addTo(dotLayer)
+        .bindPopup(
+          `<div class="popup-title"><a href="${p.url}" target="_blank" rel="noopener noreferrer">${p.name}</a></div>` +
+          `<small>${p.start}${p.start !== p.end ? '–' + p.end : ''} • ${p.type}</small>`
+        );
+      });
+      dotLayer.bringToFront();
+    }
+
+    /* Keep map.html zoom-to-Bangkok button positioned */
+    const BKK_CENTER = L.latLng(13.7563, 100.5018);
+    function sendBangkokCentroidPosition(){
+      if (!window.parent || !map) return;
+      const pt = map.latLngToContainerPoint(BKK_CENTER);
+      window.parent.postMessage({
+        type: 'bkk-centroid',
+        x: Math.round(pt.x),
+        y: Math.round(pt.y),
+        fullyZoomedOut: (map.getZoom() === map.getMinZoom())
+      }, '*');
+    }
+    map.on('zoomend moveend resize', sendBangkokCentroidPosition);
+  </script>
+</body>
+</html>

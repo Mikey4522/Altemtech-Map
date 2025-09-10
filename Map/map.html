@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Thailand ↔ Bangkok (round icon buttons)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    html,body{height:100%;margin:0;background:#f6f7fb;font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;}
+    .stage{position:relative;height:100vh;width:100vw;overflow:hidden;}
+
+    /* Map iframes stacked */
+    iframe.mapframe{
+      position:absolute; inset:0; width:100%; height:100%;
+      border:0; background:#f6f7fb; transition:opacity .2s ease;
+    }
+    #thFrame{opacity:1; pointer-events:auto;}
+    #bkkFrame{opacity:0; pointer-events:none;}
+    .show-bkk #thFrame{opacity:0; pointer-events:none;}
+    .show-bkk #bkkFrame{opacity:1; pointer-events:auto;}
+
+    /* Shared round button style */
+    .map-btn{
+      position:absolute; z-index:1000;
+      width:36px; height:36px; border-radius:50%;
+      background:#ffffff; border:1px solid #d1d5db; color:#374151; cursor:pointer;
+      box-shadow:0 4px 12px rgba(0,0,0,.12);
+      display:flex; align-items:center; justify-content:center;
+      transition:transform .08s ease, background .15s ease, opacity .15s ease;
+    }
+    .map-btn:hover{ transform:scale(1.08); background:#f9fafb; }
+    .map-btn svg{ width:18px; height:18px; stroke:#374151; stroke-width:2; }
+
+    /* Button positions */
+    #backBtn{ right:14px; top:14px; display:none; }
+    .show-bkk #backBtn{ display:flex; }
+  </style>
+</head>
+<body>
+  <div class="stage" id="stage">
+    <iframe id="thFrame"  class="mapframe" src="./Thailand.html"  title="Thailand map"></iframe>
+    <iframe id="bkkFrame" class="mapframe" src="./Bangkok.html"   title="Bangkok map"></iframe>
+
+    <!-- Zoom-in (+) button (Thailand view) -->
+    <button id="zoomBtn" class="map-btn" aria-label="Zoom to Bangkok" title="Zoom to Bangkok">
+      <svg viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="9"></circle>
+        <line x1="12" y1="8"  x2="12" y2="16"></line>
+        <line x1="8"  y1="12" x2="16" y2="12"></line>
+      </svg>
+    </button>
+
+    <!-- Back (←) button (Bangkok view) -->
+    <button id="backBtn" class="map-btn" aria-label="Back to Thailand" title="Back to Thailand">
+      <svg viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="9"></circle>
+        <line x1="8" y1="12" x2="16" y2="12"></line>
+        <line x1="8" y1="12" x2="12" y2="8"></line>
+        <line x1="8" y1="12" x2="12" y2="16"></line>
+      </svg>
+    </button>
+  </div>
+
+  <script>
+    const stage   = document.getElementById('stage');
+    const thFrame = document.getElementById('thFrame');
+    const zoomBtn = document.getElementById('zoomBtn');
+    const backBtn = document.getElementById('backBtn');
+
+    // Position offsets for zoomBtn relative to Bangkok centroid
+    const OFFSET_X = 18;
+    const OFFSET_Y = -28;
+    let gotCentroid = false;
+    let lastX = null, lastY = null;
+
+    // Switch views
+    zoomBtn.addEventListener('click', ()=>{
+      stage.classList.add('show-bkk');
+      zoomBtn.style.display = 'none'; // hide once clicked
+    });
+    backBtn.addEventListener('click', ()=>{
+      stage.classList.remove('show-bkk');
+      // restore zoom button and reposition it
+      zoomBtn.style.display = 'flex';
+      if (lastX !== null && lastY !== null){ placeZoomIcon(lastX, lastY); }
+      else { fallbackPlace(); }
+    });
+
+    function placeZoomIcon(containerX, containerY){
+      lastX = containerX; lastY = containerY;
+      const rect = thFrame.getBoundingClientRect();
+      const left = rect.left + window.scrollX + containerX + OFFSET_X;
+      const top  = rect.top  + window.scrollY + containerY + OFFSET_Y;
+      if (!stage.classList.contains('show-bkk')){
+        zoomBtn.style.left = left + 'px';
+        zoomBtn.style.top  = top  + 'px';
+        zoomBtn.style.display = 'flex';
+      }
+    }
+
+    // Listen for Bangkok centroid from Thailand.html helper
+    window.addEventListener('message', (e)=>{
+      if (e.source !== thFrame.contentWindow) return;
+      const msg = e.data || {};
+      if (msg.type !== 'bkk-centroid') return;
+      gotCentroid = true;
+      placeZoomIcon(Number(msg.x)||0, Number(msg.y)||0);
+    });
+
+    // Fallback approximate position if no message arrives
+    function fallbackPlace(){
+      if (gotCentroid) return;
+      const rect = thFrame.getBoundingClientRect();
+      const approxX = rect.width * 0.53;
+      const approxY = rect.height * 0.38;
+      placeZoomIcon(approxX, approxY);
+    }
+    setTimeout(fallbackPlace, 1200);
+    window.addEventListener('resize', ()=>{ if (!gotCentroid) fallbackPlace(); });
+  </script>
+</body>
+</html>
