@@ -11,17 +11,17 @@
 
   <style>
     :root{
-      --year-box-offset: 120px;     /* keep desktop slider where it is */
+      --year-box-offset: 120px;     /* keep slider where it is */
       --outline-weight: 2;          /* match Thailand thickness */
 
-      --district-stroke:#cfd8e3;
-      --outside-bg:#f6f7fb;
-      --outline-blue:#2f6bff;
+      --district-stroke:#cfd8e3;    /* thin inner district lines */
+      --outside-bg:#f6f7fb;         /* outside Bangkok mask color */
+      --outline-blue:#2f6bff;       /* Bangkok outer outline */
     }
     html, body { height:100%; margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
     #map { height:100%; width:100%; background:var(--outside-bg); }
 
-    /* Year control (unchanged desktop placement) */
+    /* Year control (unchanged placement) */
     .leaflet-top.leaflet-left .year-control { margin-left: var(--year-box-offset); }
     .year-control{
       background:#fff; border:1px solid #e5e7eb; border-radius:12px;
@@ -36,7 +36,7 @@
     button{ width:100%; margin-top:6px; padding:7px 10px; font-size:12px; border:1px solid #d1d5db; border-radius:8px; background:#f9fafb; cursor:pointer; }
     button:hover{ background:#f3f4f6; }
 
-    /* Legend (unchanged placement) */
+    /* Legend (unchanged) */
     .leaflet-control.legend { background:transparent; border:0; box-shadow:none; margin-top:72px; margin-right:10px; }
     .legend-box{
       background:#fff; border:1px solid #e5e7eb; border-radius:12px;
@@ -45,7 +45,7 @@
     .legend-item{ display:flex; align-items:center; gap:8px; margin:4px 0; }
     .legend-swatch{ width:12px; height:12px; border-radius:999px; display:inline-block; box-shadow:0 0 0 2px rgba(0,0,0,.04) inset; }
 
-    /* Featured (photo) markers — small, same as dots footprint */
+    /* Featured (photo) markers */
     .leaflet-marker-icon.thumb-pin {
       width: 20px; height: 20px; border-radius: 50%;
       border: 2px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,.25);
@@ -53,14 +53,6 @@
       transition: transform .08s ease;
     }
     .leaflet-marker-icon.thumb-pin:hover { transform: scale(1.06); }
-
-    /* Phone-only: prevent overlaps, keep desktop layout intact */
-    @media (max-width: 640px){
-      :root{ --year-box-offset: 12px; }
-      .year-control{ width:180px; }
-      .leaflet-control.legend{ margin-top:60px; }
-      .noUi-tooltip{ font-size:11px; }
-    }
   </style>
 </head>
 <body>
@@ -71,20 +63,17 @@
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
 
   <script>
-  (()=>{'use strict';
-    /* Legend colors (Okabe–Ito palette) */
+    /* Legend colors */
     const CATEGORY_STYLE = {
-      "D-wall":     { fill:"#E69F00", stroke:"#B37700", label:"D-wall" },
-      "Pile-wall":  { fill:"#009E73", stroke:"#007656", label:"Pile-wall" },
-      "Sheet Pile": { fill:"#0072B2", stroke:"#005785", label:"Sheet Pile" }
+      "D-wall":     { fill:"#ff6a3d", stroke:"#cc4d22", label:"D-wall" },
+      "Pile-wall":  { fill:"#10b981", stroke:"#0e8967", label:"Pile-wall" },
+      "Sheet Pile": { fill:"#6366f1", stroke:"#4348c9", label:"Sheet Pile" }
     };
-
     function addLegend(map){
       const Legend = L.Control.extend({
         options:{ position:"topright" },
         onAdd(){
           const root = L.DomUtil.create("div","leaflet-control legend");
-          root.setAttribute('role','group'); root.setAttribute('aria-label','Project types');
           const box  = L.DomUtil.create("div","legend-box", root);
           box.innerHTML = Object.values(CATEGORY_STYLE).map(s =>
             `<div class="legend-item">
@@ -100,7 +89,7 @@
       map.addControl(new Legend());
     }
 
-    /* Featured thumbnails (PNG files in same folder) */
+    /* Featured thumbnails (PNG files in the same folder) */
     const FEATURED_IMAGES = {
       "One City Centre (OCC)": "OCC.png",
       "One Bangkok":           "OB.png",
@@ -146,27 +135,43 @@
     const dotLayer = L.layerGroup().addTo(map);
     const featuredLayer = L.layerGroup().addTo(map);
 
-    /* Build basemap + mask + smooth outline */
+    /* Build basemap + mask + smooth outline (EXACT east clip) */
     fetch('bangkok-districts.geojson')
       .then(r => r.json())
       .then(bkkDistricts => {
-        // Subtle internal district lines
+        // Subtle district lines
         L.geoJSON(bkkDistricts, {
           pane:'districtPane', renderer:canvasRenderer, interactive:false,
           style:{ color:getCSS('--district-stroke'), weight:0.8, opacity:0.9, fillOpacity:0 }
         }).addTo(map);
 
-        // Merge districts, round corners, and simplify for a clean outer outline
+        // 1) Union everything first
         const fc = (bkkDistricts.type === 'FeatureCollection') ? bkkDistricts
                   : { type:'FeatureCollection', features:[bkkDistricts] };
         let merged = fc.features[0];
-        for (let i=1;i<fc.features.length;i++) merged = turf.union(merged, fc.features[i]);
+        for (let i=1;i<fc.features.length;i++){
+          try { merged = turf.union(merged, fc.features[i]); } catch(e){}
+        }
 
-        // Slightly softer numbers than before for nicer curves
-        const rounded = turf.buffer(turf.buffer(merged, 0.08, {units:'kilometers'}), -0.20, {units:'kilometers'});
-        const simplified = turf.simplify(rounded, { tolerance:0.00035, highQuality:true });
+        // 2) Precisely clip with a rectangle that keeps only WEST of CUT_LNG
+        const CUT_LNG = 100.735;  // ⬅️ move ±0.002 to align perfectly with your yellow line
+        const [minX, minY, maxX, maxY] = turf.bbox(merged);
+        const clipPoly = turf.polygon([[
+          [minX-1, minY-1],
+          [CUT_LNG, minY-1],
+          [CUT_LNG, maxY+1],
+          [minX-1, maxY+1],
+          [minX-1, minY-1]
+        ]]);
+        let clipped = turf.intersect(merged, clipPoly) || merged;
 
-        // Exterior ring only
+        // 3) Round corners by buffering out then in (km) to soften sharp points
+        const rounded = turf.buffer(turf.buffer(clipped, 0.1, {units:'kilometers'}), -0.25, {units:'kilometers'});
+
+        // 4) Gentle simplify to remove tiny jaggies
+        const simplified = turf.simplify(rounded, { tolerance:0.0004, highQuality:true });
+
+        // 5) Exterior ring only for the blue outline
         const outer = JSON.parse(JSON.stringify(simplified));
         if (outer.geometry.type === 'Polygon') outer.geometry.coordinates = [outer.geometry.coordinates[0]];
         else if (outer.geometry.type === 'MultiPolygon') outer.geometry.coordinates = outer.geometry.coordinates.map(poly => [poly[0]]);
@@ -177,27 +182,24 @@
           style:{ stroke:false, fill:true, fillColor:getCSS('--outside-bg'), fillOpacity:1, fillRule:'evenodd' }
         }).addTo(map);
 
-        // Light inner fill
+        // Very light inner tint
         L.geoJSON(simplified, {
           pane:'fillPane', renderer:canvasRenderer, interactive:false,
           style:{ stroke:false, fill:true, fillColor:getCSS('--outline-blue'), fillOpacity:0.06 }
         }).addTo(map);
 
-        // Thin, rounded blue outline to match Thailand
+        // Thin, rounded blue outline — same as Thailand
         L.geoJSON(outer, {
           pane:'outlinePane', renderer:canvasRenderer, interactive:false, smoothFactor:2.5,
           style:{ color:getCSS('--outline-blue'), weight:parseFloat(getCSS('--outline-weight'))||2, opacity:1, lineJoin:'round', lineCap:'round', fill:false }
         }).addTo(map);
 
-        // Fit; keep your UI clear; allow more wiggle room + slightly more zoomed in by default
-        const LEFT_UI_PAD = (parseInt(getCSS('--year-box-offset')) || 120) + 140;
+        // Fit & keep UI placement; give extra room for panning
+        const LEFT_UI_PAD = (parseInt(getCSS('--year-box-offset')) || 270) + 140;
         const bounds = L.geoJSON(outer).getBounds();
         map.fitBounds(bounds, { paddingTopLeft:[LEFT_UI_PAD,28], paddingBottomRight:[28,28] });
-        map.setZoom(map.getZoom() + 0.5);                // default a bit closer
-        map.setMaxBounds(bounds.pad(0.12));              // more horizontal panning room
-        map.options.worldCopyJump = false;
-        map.options.inertia = true;
-        map.options.inertiaDeceleration = 2000;
+        map.setZoom(map.getZoom() + 1, { animate: false });
+        map.setMaxBounds(bounds.pad(0.08));
         map.on('drag', () => map.panInsideBounds(map.options.maxBounds, { animate:true }));
 
         addYearControl();
@@ -279,14 +281,10 @@
               `<div class="popup-title"><a href="${p.url||'#'}" target="_blank" rel="noopener noreferrer">${p.name}</a></div>`+
               `<small>${p.start}${p.start!==p.end?'–'+p.end:''} • ${p.type}</small>`
             );
-          // Apply image once element exists
           mk.on('add', () => {
             const el = mk.getElement();
-            if (el){ el.style.backgroundImage = `url("${FEATURED_IMAGES[p.name]}")`;
-                     el.setAttribute('role','button');
-                     el.setAttribute('aria-label', `${p.name}, ${p.start}${p.start!==p.end?'–'+p.end:''}, ${p.type}`); }
+            if (el) el.style.backgroundImage = `url("${FEATURED_IMAGES[p.name]}")`;
           });
-          // Fallback in case:
           setTimeout(() => {
             const el = mk.getElement();
             if (el && !el.style.backgroundImage) el.style.backgroundImage = `url("${FEATURED_IMAGES[p.name]}")`;
@@ -310,7 +308,6 @@
       featuredLayer.bringToFront();
       dotLayer.bringToFront();
     }
-  })();
   </script>
 </body>
 </html>
