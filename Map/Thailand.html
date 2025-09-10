@@ -1,5 +1,5 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <title>Thailand Projects — Year Filter (with categories)</title>
@@ -8,19 +8,14 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nouislider@15.8.1/dist/nouislider.min.css"/>
   <style>
     :root{
-      /* keep slider aligned with Bangkok */
+      /* keep desktop slider aligned with Bangkok */
       --year-box-offset: 205px;
       --outside-bg:#f6f7fb;
     }
     html, body { height:100%; margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
-    #map {
-      height: 100svh;  /* mobile-safe viewport height */
-      min-height: 100vh;
-      width: 100%;
-      background: var(--outside-bg);
-    }
+    #map { height:100%; width:100%; background:var(--outside-bg); }
 
-    /* Year control (same as Bangkok) */
+    /* Year control (same desktop placement as Bangkok) */
     .leaflet-top.leaflet-left .year-control { margin-left: var(--year-box-offset); }
     .year-control{
       background:#fff; border:1px solid #e5e7eb; border-radius:12px;
@@ -38,7 +33,7 @@
     .popup-title a { color:#111827; text-decoration:none; }
     .popup-title a:hover { text-decoration:underline; }
 
-    /* Boxed legend — same look/placement as Bangkok (under top-right button) */
+    /* Boxed legend — under top-right UI */
     .leaflet-control.legend { background:transparent; border:0; box-shadow:none; margin-top:72px; margin-right:10px; }
     .legend-box{
       background:#fff; border:1px solid #e5e7eb; border-radius:12px;
@@ -47,37 +42,12 @@
     .legend-item{ display:flex; align-items:center; gap:8px; margin:4px 0; }
     .legend-swatch{ width:12px; height:12px; border-radius:999px; display:inline-block; box-shadow:0 0 0 2px rgba(0,0,0,.04) inset; }
 
-    /* --- Phone-only UI shrink without changing anchor positions --- */
-    @media (max-width: 640px) {
-      :root { --ui-scale: 0.86; }
-
-      .leaflet-top.leaflet-left .year-control {
-        margin-left: calc(var(--year-box-offset) * var(--ui-scale));
-      }
-      .year-control {
-        transform: scale(var(--ui-scale));
-        transform-origin: top left;
-        width: calc(200px * var(--ui-scale));
-      }
-      .year-control .row label { font-size: 11px; }
-      .year-control input[type="number"] {
-        width: calc(90px * var(--ui-scale));
-        font-size: 11px;
-        padding: 5px 6px;
-      }
-      #yearSlider { margin-top: 4px; }
-
-      /* Hide slider tooltips on phones to prevent overlap */
-      .noUi-tooltip { display: none !important; }
-
-      /* Keep top-right anchor; just shrink the legend box */
-      .leaflet-control.legend { margin-top: 64px; }
-      .legend-box {
-        transform: scale(0.9);
-        transform-origin: top right;
-        font-size: 11px;
-        padding: 8px 10px;
-      }
+    /* Phone-only: prevent overlaps while keeping desktop positions */
+    @media (max-width: 640px){
+      :root{ --year-box-offset: 12px; }
+      .year-control{ width:180px; }
+      .leaflet-control.legend{ margin-top:60px; }
+      .noUi-tooltip{ font-size:11px; }
     }
   </style>
 </head>
@@ -88,11 +58,12 @@
   <script src="https://cdn.jsdelivr.net/npm/nouislider@15.8.1/dist/nouislider.min.js"></script>
 
   <script>
-    /* Category colors — identical to Bangkok */
+  (()=>{'use strict';
+    /* Color-blind safe palette (Okabe–Ito) */
     const CATEGORY_STYLE = {
-      "D-wall":     { fill:"#ff6a3d", stroke:"#cc4d22" },
-      "Pile-wall":  { fill:"#10b981", stroke:"#0e8967" },
-      "Sheet Pile": { fill:"#6366f1", stroke:"#4348c9" }
+      "D-wall":     { fill:"#E69F00", stroke:"#B37700" }, // orange
+      "Pile-wall":  { fill:"#009E73", stroke:"#007656" }, // green
+      "Sheet Pile": { fill:"#0072B2", stroke:"#005785" }  // blue
     };
 
     const CURRENT_YEAR = new Date().getFullYear();
@@ -123,6 +94,7 @@
     const dotLayer = L.layerGroup().addTo(map);
 
     const TH_URL = 'https://raw.githubusercontent.com/johan/world.geo.json/master/countries/THA.geo.json';
+    let defaultBounds;
 
     (async function start() {
       const thaiGeo = await fetch(TH_URL, { cache:'no-store' }).then(r => r.json());
@@ -130,9 +102,9 @@
       L.geoJSON(thaiGeo, { style: { color:'#2f8269', weight:2, fillColor:'#cfeee4', fillOpacity:1 } })
         .addTo(map);
 
-      const TH_BOUNDS = L.geoJSON(thaiGeo).getBounds();
-      map.fitBounds(TH_BOUNDS, { padding: [20,20] });
-      map.setMaxBounds(TH_BOUNDS.pad(0.15));
+      defaultBounds = L.geoJSON(thaiGeo).getBounds();
+      map.fitBounds(defaultBounds, { padding: [20,20] });
+      map.setMaxBounds(defaultBounds.pad(0.15));
       map.options.minZoom = map.getZoom();
       map.on('drag', () => map.panInsideBounds(map.options.maxBounds, { animate: true }));
 
@@ -145,7 +117,7 @@
     function addYearControl() {
       const YearControl = L.Control.extend({
         options: { position: 'topleft' },
-        onAdd: function () {
+        onAdd() {
           const div = L.DomUtil.create('div', 'year-control');
           div.innerHTML = `
             <h4>Years</h4>
@@ -162,11 +134,13 @@
       map.addControl(new YearControl());
     }
 
+    /* Legend (same look/placement as Bangkok) */
     function addLegend(map){
       const Legend = L.Control.extend({
         options:{ position:"topright" },
         onAdd(){
           const root = L.DomUtil.create("div","leaflet-control legend");
+          root.setAttribute('role','group'); root.setAttribute('aria-label','Project types');
           const box  = L.DomUtil.create("div","legend-box", root);
           box.innerHTML = Object.entries(CATEGORY_STYLE).map(([k,s]) =>
             `<div class="legend-item">
@@ -251,6 +225,7 @@
       }, '*');
     }
     map.on('zoomend moveend resize', sendBangkokCentroidPosition);
+  })();
   </script>
 </body>
 </html>
