@@ -19,7 +19,12 @@
       --outline-blue:#2f6bff;       /* Bangkok outer outline */
     }
     html, body { height:100%; margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
-    #map { height:100%; width:100%; background:var(--outside-bg); }
+    #map {
+      height: 100svh;  /* mobile-safe viewport height */
+      min-height: 100vh;
+      width: 100%;
+      background: var(--outside-bg);
+    }
 
     /* Year control (unchanged placement) */
     .leaflet-top.leaflet-left .year-control { margin-left: var(--year-box-offset); }
@@ -53,6 +58,19 @@
       transition: transform .08s ease;
     }
     .leaflet-marker-icon.thumb-pin:hover { transform: scale(1.06); }
+
+    /* Phone-only shrink (keeps anchors, reduces overlap) */
+    @media (max-width: 640px) {
+      :root { --ui-scale: 0.86; }
+      .leaflet-top.leaflet-left .year-control { margin-left: calc(var(--year-box-offset) * var(--ui-scale)); }
+      .year-control { transform: scale(var(--ui-scale)); transform-origin: top left; width: calc(200px * var(--ui-scale)); }
+      .year-control .row label { font-size: 11px; }
+      .year-control input[type="number"] { width: calc(90px * var(--ui-scale)); font-size: 11px; padding: 5px 6px; }
+      #yearSlider { margin-top: 4px; }
+      .noUi-tooltip { display: none !important; }
+      .leaflet-control.legend { margin-top: 64px; }
+      .legend-box { transform: scale(0.9); transform-origin: top right; font-size: 11px; padding: 8px 10px; }
+    }
   </style>
 </head>
 <body>
@@ -145,30 +163,26 @@
           style:{ color:getCSS('--district-stroke'), weight:0.8, opacity:0.9, fillOpacity:0 }
         }).addTo(map);
 
-        // 1) merge to one shape
+        // Merge → round corners → simplify
         const fc = (bkkDistricts.type === 'FeatureCollection') ? bkkDistricts
                   : { type:'FeatureCollection', features:[bkkDistricts] };
         let merged = fc.features[0];
         for (let i=1;i<fc.features.length;i++) merged = turf.union(merged, fc.features[i]);
-
-        // 2) round corners by buffering out then in (in km), which softens sharp points
         const rounded = turf.buffer(turf.buffer(merged, 0.1, {units:'kilometers'}), -0.25, {units:'kilometers'});
-
-        // 3) gentle simplify to remove tiny jaggies but keep shape faithful
         const simplified = turf.simplify(rounded, { tolerance:0.0004, highQuality:true });
 
-        // 4) keep only exterior ring for the blue outline
+        // Outer ring only for outline
         const outer = JSON.parse(JSON.stringify(simplified));
         if (outer.geometry.type === 'Polygon') outer.geometry.coordinates = [outer.geometry.coordinates[0]];
         else if (outer.geometry.type === 'MultiPolygon') outer.geometry.coordinates = outer.geometry.coordinates.map(poly => [poly[0]]);
 
-        // Mask outside Bangkok with the smoothed shape
+        // Mask outside Bangkok
         L.geoJSON(turf.mask(simplified), {
           pane:'maskPane', renderer:canvasRenderer, interactive:false,
           style:{ stroke:false, fill:true, fillColor:getCSS('--outside-bg'), fillOpacity:1, fillRule:'evenodd' }
         }).addTo(map);
 
-        // Very light inner tint (smoothed)
+        // Light inner tint
         L.geoJSON(simplified, {
           pane:'fillPane', renderer:canvasRenderer, interactive:false,
           style:{ stroke:false, fill:true, fillColor:getCSS('--outline-blue'), fillOpacity:0.06 }
@@ -180,12 +194,33 @@
           style:{ color:getCSS('--outline-blue'), weight:parseFloat(getCSS('--outline-weight'))||2, opacity:1, lineJoin:'round', lineCap:'round', fill:false }
         }).addTo(map);
 
-        // Fit and keep your existing UI placement unchanged
+        /* Fit as before */
         const LEFT_UI_PAD = (parseInt(getCSS('--year-box-offset')) || 270) + 140;
-        const bounds = L.geoJSON(outer).getBounds();
-        map.fitBounds(bounds, { paddingTopLeft:[LEFT_UI_PAD,28], paddingBottomRight:[28,28] });
-        map.setMaxBounds(bounds.pad(0.01));
-        map.on('drag', () => map.panInsideBounds(map.options.maxBounds, { animate:true }));
+        const baseBounds = L.geoJSON(outer).getBounds();
+        map.fitBounds(baseBounds, { paddingTopLeft:[LEFT_UI_PAD,28], paddingBottomRight:[28,28] });
+
+        /* 🔧 More drag room when zoomed out (dynamic envelope) */
+        const PAD_MIN = 0.22;   // tight when zoomed in
+        const PAD_MAX = 0.70;   // generous when fully zoomed out
+
+        function envelopeForZoom() {
+          const zMin = map.getMinZoom();
+          const zMax = map.getMaxZoom() || 19;
+          const z    = map.getZoom();
+          const t = Math.min(1, Math.max(0, (z - zMin) / (zMax - zMin))); // 0 at min zoom, 1 at max
+          const pad = PAD_MAX - (PAD_MAX - PAD_MIN) * t; // more pad at low zoom
+          return baseBounds.pad(pad);
+        }
+        function applyEnvelope() {
+          const env = envelopeForZoom();
+          map.setMaxBounds(env);
+          map.panInsideBounds(env, { animate:true });
+        }
+        // initial + on interactions
+        applyEnvelope();
+        map.on('zoomend', applyEnvelope);
+        map.on('resize', applyEnvelope);
+        map.on('drag', () => map.panInsideBounds(envelopeForZoom(), { animate:true }));
 
         addYearControl();
         addLegend(map);

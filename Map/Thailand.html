@@ -9,11 +9,16 @@
   <style>
     :root{
       /* keep slider aligned with Bangkok */
-      --year-box-offset: 270px;
+      --year-box-offset: 205px;
       --outside-bg:#f6f7fb;
     }
     html, body { height:100%; margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
-    #map { height:100%; width:100%; background:var(--outside-bg); }
+    #map {
+      height: 100svh;  /* mobile-safe viewport height */
+      min-height: 100vh;
+      width: 100%;
+      background: var(--outside-bg);
+    }
 
     /* Year control (same as Bangkok) */
     .leaflet-top.leaflet-left .year-control { margin-left: var(--year-box-offset); }
@@ -41,6 +46,39 @@
     }
     .legend-item{ display:flex; align-items:center; gap:8px; margin:4px 0; }
     .legend-swatch{ width:12px; height:12px; border-radius:999px; display:inline-block; box-shadow:0 0 0 2px rgba(0,0,0,.04) inset; }
+
+    /* --- Phone-only UI shrink without changing anchor positions --- */
+    @media (max-width: 640px) {
+      :root { --ui-scale: 0.86; }
+
+      .leaflet-top.leaflet-left .year-control {
+        margin-left: calc(var(--year-box-offset) * var(--ui-scale));
+      }
+      .year-control {
+        transform: scale(var(--ui-scale));
+        transform-origin: top left;
+        width: calc(200px * var(--ui-scale));
+      }
+      .year-control .row label { font-size: 11px; }
+      .year-control input[type="number"] {
+        width: calc(90px * var(--ui-scale));
+        font-size: 11px;
+        padding: 5px 6px;
+      }
+      #yearSlider { margin-top: 4px; }
+
+      /* Hide slider tooltips on phones to prevent overlap */
+      .noUi-tooltip { display: none !important; }
+
+      /* Keep top-right anchor; just shrink the legend box */
+      .leaflet-control.legend { margin-top: 64px; }
+      .legend-box {
+        transform: scale(0.9);
+        transform-origin: top right;
+        font-size: 11px;
+        padding: 8px 10px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -99,7 +137,7 @@
       map.on('drag', () => map.panInsideBounds(map.options.maxBounds, { animate: true }));
 
       addYearControl();
-      addLegend(map);   // ⬅️ legend added here (same position as Bangkok)
+      addLegend(map);
       initFilter();
       setTimeout(sendBangkokCentroidPosition, 0);
     })();
@@ -124,7 +162,6 @@
       map.addControl(new YearControl());
     }
 
-    /* Boxed legend control (identical to Bangkok) */
     function addLegend(map){
       const Legend = L.Control.extend({
         options:{ position:"topright" },
