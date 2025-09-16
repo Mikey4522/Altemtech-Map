@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Bangkok Projects — Featured Thumbs</title>
+  <title>Bangkok Projects — 2D map with locked gallery</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- Leaflet + noUiSlider -->
@@ -11,17 +11,26 @@
 
   <style>
     :root{
-      --year-box-offset: 120px;     /* keep slider where it is */
-      --outline-weight: 2;          /* match Thailand thickness */
+      --year-box-offset: 120px;
+      --outline-weight: 2;
+      --district-stroke:#cfd8e3;
+      --outside-bg:#f6f7fb;
+      --outline-blue:#2f6bff;
 
-      --district-stroke:#cfd8e3;    /* thin inner district lines */
-      --outside-bg:#f6f7fb;         /* outside Bangkok mask color */
-      --outline-blue:#2f6bff;       /* Bangkok outer outline */
+      /* gallery safe-area guards (percent of card) */
+      --guard-top: 6%;
+      --guard-bottom: 6%;
+      --guard-side: 3%;
     }
-    html, body { height:100%; margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
-    #map { height:100%; width:100%; background:var(--outside-bg); }
 
-    /* Year control (unchanged placement) */
+    html, body { height:100%; margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
+    #map { position:relative; height:100%; width:100%; background:var(--outside-bg); }
+
+    /* Make Leaflet popups sit above everything */
+    .leaflet-pane.leaflet-popup-pane { z-index: 100000 !important; }
+    .leaflet-popup { filter: drop-shadow(0 10px 24px rgba(0,0,0,.18)); }
+
+    /* Year control */
     .leaflet-top.leaflet-left .year-control { margin-left: var(--year-box-offset); }
     .year-control{
       background:#fff; border:1px solid #e5e7eb; border-radius:12px;
@@ -36,165 +45,200 @@
     button{ width:100%; margin-top:6px; padding:7px 10px; font-size:12px; border:1px solid #d1d5db; border-radius:8px; background:#f9fafb; cursor:pointer; }
     button:hover{ background:#f3f4f6; }
 
-    /* Legend (unchanged) */
+    /* Legend */
     .leaflet-control.legend { background:transparent; border:0; box-shadow:none; margin-top:72px; margin-right:10px; }
-    .legend-box{
-      background:#fff; border:1px solid #e5e7eb; border-radius:12px;
-      padding:10px 12px; box-shadow:0 8px 24px rgba(0,0,0,.08); font-size:12px;
-    }
+    .legend-box{ background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:10px 12px; box-shadow:0 8px 24px rgba(0,0,0,.08); font-size:12px; }
     .legend-item{ display:flex; align-items:center; gap:8px; margin:4px 0; }
     .legend-swatch{ width:12px; height:12px; border-radius:999px; display:inline-block; box-shadow:0 0 0 2px rgba(0,0,0,.04) inset; }
 
-    /* Featured (photo) markers */
+    /* Featured thumbnail markers */
     .leaflet-marker-icon.thumb-pin {
-      width: 20px; height: 20px; border-radius: 50%;
-      border: 2px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,.25);
-      background-size: cover; background-position: center center;
-      transition: transform .08s ease;
+      width:20px; height:20px; border-radius:50%;
+      border:2px solid #fff; box-shadow:0 2px 8px rgba(0,0,0,.25);
+      background-size:cover; background-position:center;
+      transition:transform .08s ease;
+      background-color:#eee;
     }
-    .leaflet-marker-icon.thumb-pin:hover { transform: scale(1.06); }
+    .leaflet-marker-icon.thumb-pin:hover { transform:scale(1.06); }
+
+    /* ---------- Fullscreen gallery overlay ---------- */
+    #galleryOverlay {
+      position: fixed; inset: 0;
+      display: none;
+      background: rgba(0,0,0,.6);
+      z-index: 9999;
+      align-items: center; justify-content: center;
+    }
+    #galleryCard{
+      position: relative;
+      width: min(96vw, 1200px);
+      height: min(92vh, 800px);
+      background:#111; border-radius:14px;
+      box-shadow: 0 20px 50px rgba(0,0,0,.45); overflow:hidden;
+    }
+    #galleryHeader{
+      position:absolute; left:0; top:0; right:0; height:48px;
+      display:flex; align-items:center; justify-content:space-between;
+      padding:0 12px; color:#fff; background:linear-gradient(#1f2937,#111827); font-size:14px;
+      z-index: 3;
+    }
+    #galleryFrame{
+      position:absolute; inset:48px 0 0 0; width:100%; height:calc(100% - 48px);
+      border:0; background:#111; z-index: 1;
+    }
+    .gbtn{ appearance:none; border:0; border-radius:9px; padding:8px 12px; cursor:pointer;
+           font:600 13px/1 system-ui,-apple-system,Segoe UI,Roboto,Arial; color:#111; background:#fff; }
+    .gbtn:hover{ filter:brightness(.96); }
+
+    .guard { position:absolute; z-index: 2; background:transparent; }
+    #guardTop    { left:0; right:0; top:48px; height:var(--guard-top); }
+    #guardBottom { left:0; right:0; bottom:0; height:var(--guard-bottom); }
+    #guardLeft   { left:0; top:calc(48px + var(--guard-top)); bottom:var(--guard-bottom); width:var(--guard-side); }
+    #guardRight  { right:0; top:calc(48px + var(--guard-top)); bottom:var(--guard-bottom); width:var(--guard-side); }
+
+    .mini-photo-link{
+      display:inline-flex; vertical-align:middle; margin-left:8px;
+      width:16px; height:16px; border-radius:4px; align-items:center; justify-content:center;
+      border:1px solid #d1d5db; background:#fff; color:#111; text-decoration:none;
+    }
+    .mini-photo-link:hover{ background:#f5f6f7; }
+    .mini-photo-link svg{ width:12px; height:12px; }
+
+    /* Company logo as a Leaflet control (shared with Thailand) */
+    .leaflet-control.company-brand{
+      background:transparent; border:0; box-shadow:none; margin:20px;
+    }
+    .leaflet-control.company-brand img{
+      width:84px; display:block; pointer-events:none;
+    }
   </style>
 </head>
 <body>
   <div id="map"></div>
 
+  <!-- Gallery overlay -->
+  <div id="galleryOverlay" role="dialog" aria-modal="true">
+    <div id="galleryCard">
+      <div id="galleryHeader">
+        <div id="galleryTitle">Project Photos</div>
+        <div style="display:flex; gap:8px">
+          <button class="gbtn" id="openInTabBtn">Open in tab</button>
+          <button class="gbtn" id="closeGalleryBtn">Close</button>
+        </div>
+      </div>
+
+      <iframe id="galleryFrame"
+              sandbox="allow-scripts allow-same-origin"
+              referrerpolicy="no-referrer"></iframe>
+
+      <div id="guardTop" class="guard"></div>
+      <div id="guardBottom" class="guard"></div>
+      <div id="guardLeft" class="guard"></div>
+      <div id="guardRight" class="guard"></div>
+    </div>
+  </div>
+
+  <!-- JS libs -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/nouislider@15.8.1/dist/nouislider.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
 
   <script>
-    /* Legend colors */
+    /* ---------- styles + data ---------- */
     const CATEGORY_STYLE = {
       "D-wall":     { fill:"#ff6a3d", stroke:"#cc4d22", label:"D-wall" },
       "Pile-wall":  { fill:"#10b981", stroke:"#0e8967", label:"Pile-wall" },
       "Sheet Pile": { fill:"#6366f1", stroke:"#4348c9", label:"Sheet Pile" }
     };
-    function addLegend(map){
-      const Legend = L.Control.extend({
-        options:{ position:"topright" },
-        onAdd(){
-          const root = L.DomUtil.create("div","leaflet-control legend");
-          const box  = L.DomUtil.create("div","legend-box", root);
-          box.innerHTML = Object.values(CATEGORY_STYLE).map(s =>
-            `<div class="legend-item">
-               <span class="legend-swatch" style="background:${s.fill}; border:1px solid ${s.stroke}"></span>
-               <span>${s.label}</span>
-             </div>`
-          ).join("");
-          L.DomEvent.disableClickPropagation(root);
-          L.DomEvent.disableScrollPropagation(root);
-          return root;
-        }
-      });
-      map.addControl(new Legend());
-    }
 
-    /* Featured thumbnails (PNG files in the same folder) */
+    const GALLERIES = { };
     const FEATURED_IMAGES = {
       "One City Centre (OCC)": "OCC.png",
       "One Bangkok":           "OB.png",
       "140 Wireless":          "140W.png"
     };
-    const isFeatured = (p) => Object.prototype.hasOwnProperty.call(FEATURED_IMAGES, p.name);
+    Object.values(FEATURED_IMAGES).forEach(src => { const i = new Image(); i.src = src; });
+    const isFeatured = p => Object.prototype.hasOwnProperty.call(FEATURED_IMAGES, p.name);
 
-    /* Data */
     const CURRENT_YEAR = new Date().getFullYear();
     const site = 'https://altemtech.com/portfolio-items/';
     const projects = [
       { name:"True Digital Park (Phase II)", lat:13.685581, lng:100.611308, start:2019, end:2021, type:"D-wall",     url:site+"true-digital-park-phase-ii/" },
       { name:"Emsphere & Emlive",           lat:13.732166, lng:100.566047, start:2018, end:2018, type:"D-wall",     url:site+"emsphere-emlive/" },
       { name:"One City Centre (OCC)",       lat:13.743039, lng:100.546853, start:2019, end:2021, type:"D-wall",     url:site+"one-city-centre/" },
-      { name:"One Bangkok",                 lat:13.726830, lng:100.547200, start:2018, end:2021, type:"D-wall",     url:site+"one-bangkok/" },
+      { name:"One Bangkok",                 lat:13.726830, lng:100.546200, start:2018, end:2021, type:"D-wall",     url:site+"one-bangkok/" },
       { name:"140 Wireless",                lat:13.739300, lng:100.546900, start:2020, end:2020, type:"D-wall",     url:site+"140-wireless/" },
-      { name:"The New National Parliament House", lat:13.795823, lng:100.517282, start:2014, end:2016, type:"Pile-wall",  url:site+"the-new-national-parliament-house/" },
-      { name:"BITEC (Bangna)",              lat:13.669170, lng:100.610000, start:2011, end:2014, type:"Pile-wall",  url:site+"bitec/" },
+      { name:"The New National Parliament House", lat:13.796000, lng:100.517000, start:2014, end:2016, type:"Pile-wall",  url:site+"the-new-national-parliament-house/" },
+      { name:"BITEC (Bangna)",              lat:13.669170, lng:100.606700, start:2011, end:2014, type:"Pile-wall",  url:site+"bitec/" },
       { name:"TPP Healthcare International",lat:13.721886, lng:100.556262, start:2018, end:2019, type:"D-wall",     url:site+"tpp-healthcare-international-hospital/" },
       { name:"Terminal 21 (Asok)",          lat:13.737000, lng:100.560600, start:2008, end:2009, type:"D-wall",     url:site+"terminal-21/" },
-      { name:"Siam Square One",             lat:13.739990, lng:100.526550, start:2012, end:2012, type:"Pile-wall",  url:site+"sindhorn-midtown/" },
+      { name:"Siam Square One",             lat:13.744000, lng:100.534000, start:2012, end:2012, type:"Pile-wall",  url:site+"sindhorn-midtown/" },
       { name:"Rosewood Hotel Bangkok",      lat:13.744640, lng:100.548640, start:2015, end:2016, type:"D-wall",     url:site+"rosewood-bangkok/" },
       { name:"Muang Thai Life Assurance Head Office", lat:13.780000, lng:100.573000, start:2019, end:CURRENT_YEAR, type:"Sheet Pile", url:site+"muang-thai-life-assurance-head-office/" },
       { name:"THE UNICORN (Phaya Thai)",    lat:13.756000, lng:100.533000, start:2018, end:CURRENT_YEAR, type:"D-wall", url:site+"the-unicorn/" },
       { name:"MRT Connection (Samyan)",     lat:13.734000, lng:100.529000, start:2019, end:2019, type:"Sheet Pile", url:site+"mrt-connection-samyan/" },
       { name:"UOB Head Office (Sathon)",    lat:13.720448, lng:100.527311, start:2018, end:CURRENT_YEAR, type:"D-wall", url:site+"uob-head-office/" },
       { name:"Sindhorn Midtown",            lat:13.741388, lng:100.542920, start:2016, end:2017, type:"D-wall",     url:site+"sindhorn-midtown/" },
-      { name:"Four Seasons Private Residences Bangkok", lat:13.700803, lng:100.492336, start:2015, end:2018, type:"Pile-wall", url:site+"four-seasons-private-residence/" },
+      { name:"Four Seasons Private Residences Bangkok", lat:13.705800, lng:100.513400, start:2015, end:2018, type:"Pile-wall", url:site+"four-seasons-private-residence/" },
       { name:"Carpark Shrewsbury (Riverside)", lat:13.709720, lng:100.509170, start:2018, end:2018, type:"D-wall", url:"https://altemtech.com/portfolio-items/%E0%B8%AD%E0%B8%B2%E0%B8%84%E0%B8%B2%E0%B8%A3%E0%B9%8C%E0%B8%88%E0%B8%AD%E0%B8%94%E0%B8%A3%E0%B8%96%E0%B9%82%E0%B8%A3%E0%B8%87%E0%B9%80%E0%B8%A3%E0%B8%B5%E0%B8%A2%E0%B8%99%E0%B8%99%E0%B8%B2%E0%B8%99%E0%B8%B2/?lang=th" }
     ];
 
+    /* ---------- map + outline ---------- */
     const map = L.map('map', { zoomSnap:0.25, attributionControl:false });
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { subdomains:'abcd', maxZoom:19 }).addTo(map);
 
-    /* Panes */
+    // Panes
     map.createPane('maskPane');     map.getPane('maskPane').style.zIndex = 350;
     map.createPane('fillPane');     map.getPane('fillPane').style.zIndex = 410;
     map.createPane('districtPane'); map.getPane('districtPane').style.zIndex = 420;
     map.createPane('outlinePane');  map.getPane('outlinePane').style.zIndex = 600;
     map.createPane('dotPane');      map.getPane('dotPane').style.zIndex = 650;
+    map.createPane('featuredPane'); map.getPane('featuredPane').style.zIndex = 700;
 
     const canvasRenderer = L.canvas({ padding:0.5 });
     const dotLayer = L.layerGroup().addTo(map);
     const featuredLayer = L.layerGroup().addTo(map);
 
-    /* Build basemap + mask + smooth outline (EXACT east clip) */
     fetch('bangkok-districts.geojson')
       .then(r => r.json())
       .then(bkkDistricts => {
-        // Subtle district lines
         L.geoJSON(bkkDistricts, {
           pane:'districtPane', renderer:canvasRenderer, interactive:false,
           style:{ color:getCSS('--district-stroke'), weight:0.8, opacity:0.9, fillOpacity:0 }
         }).addTo(map);
 
-        // 1) Union everything first
         const fc = (bkkDistricts.type === 'FeatureCollection') ? bkkDistricts
-                  : { type:'FeatureCollection', features:[bkkDistricts] };
+              : { type:'FeatureCollection', features:[bkkDistricts] };
         let merged = fc.features[0];
-        for (let i=1;i<fc.features.length;i++){
-          try { merged = turf.union(merged, fc.features[i]); } catch(e){}
-        }
+        for (let i=1;i<fc.features.length;i++){ try { merged = turf.union(merged, fc.features[i]); } catch(e){} }
 
-        // 2) Precisely clip with a rectangle that keeps only WEST of CUT_LNG
-        const CUT_LNG = 100.735;  // ⬅️ move ±0.002 to align perfectly with your yellow line
+        const CUT_LNG = 100.735;
         const [minX, minY, maxX, maxY] = turf.bbox(merged);
-        const clipPoly = turf.polygon([[
-          [minX-1, minY-1],
-          [CUT_LNG, minY-1],
-          [CUT_LNG, maxY+1],
-          [minX-1, maxY+1],
-          [minX-1, minY-1]
-        ]]);
-        let clipped = turf.intersect(merged, clipPoly) || merged;
+        const clipPoly = turf.polygon([[ [minX-1, minY-1], [CUT_LNG, minY-1], [CUT_LNG, maxY+1], [minX-1, maxY+1], [minX-1, minY-1] ]]);
+        const clipped = turf.intersect(merged, clipPoly) || merged;
 
-        // 3) Round corners by buffering out then in (km) to soften sharp points
         const rounded = turf.buffer(turf.buffer(clipped, 0.1, {units:'kilometers'}), -0.25, {units:'kilometers'});
-
-        // 4) Gentle simplify to remove tiny jaggies
         const simplified = turf.simplify(rounded, { tolerance:0.0004, highQuality:true });
 
-        // 5) Exterior ring only for the blue outline
         const outer = JSON.parse(JSON.stringify(simplified));
         if (outer.geometry.type === 'Polygon') outer.geometry.coordinates = [outer.geometry.coordinates[0]];
         else if (outer.geometry.type === 'MultiPolygon') outer.geometry.coordinates = outer.geometry.coordinates.map(poly => [poly[0]]);
 
-        // Mask outside Bangkok
         L.geoJSON(turf.mask(simplified), {
           pane:'maskPane', renderer:canvasRenderer, interactive:false,
           style:{ stroke:false, fill:true, fillColor:getCSS('--outside-bg'), fillOpacity:1, fillRule:'evenodd' }
         }).addTo(map);
 
-        // Very light inner tint
         L.geoJSON(simplified, {
           pane:'fillPane', renderer:canvasRenderer, interactive:false,
           style:{ stroke:false, fill:true, fillColor:getCSS('--outline-blue'), fillOpacity:0.06 }
         }).addTo(map);
 
-        // Thin, rounded blue outline — same as Thailand
         L.geoJSON(outer, {
           pane:'outlinePane', renderer:canvasRenderer, interactive:false, smoothFactor:2.5,
           style:{ color:getCSS('--outline-blue'), weight:parseFloat(getCSS('--outline-weight'))||2, opacity:1, lineJoin:'round', lineCap:'round', fill:false }
         }).addTo(map);
 
-        // Fit & keep UI placement; give extra room for panning
         const LEFT_UI_PAD = (parseInt(getCSS('--year-box-offset')) || 270) + 140;
         const bounds = L.geoJSON(outer).getBounds();
         map.fitBounds(bounds, { paddingTopLeft:[LEFT_UI_PAD,28], paddingBottomRight:[28,28] });
@@ -203,12 +247,14 @@
         map.on('drag', () => map.panInsideBounds(map.options.maxBounds, { animate:true }));
 
         addYearControl();
-        addLegend(map);
+        addLegend();
+        addCompanyLogo(map); // <-- consistent logo placement
         initFilter();
       });
 
     function getCSS(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
 
+    /* ---------- year filter ---------- */
     function addYearControl(){
       const YearControl = L.Control.extend({
         options:{ position:'topleft' },
@@ -266,48 +312,162 @@
       return [lat+dLat, lng+dLng];
     }
 
-    function drawDots(minYear,maxYear){
+    function applyThumbBackground(marker, url){
+      function trySet(){
+        const el = marker.getElement();
+        if (!el) { requestAnimationFrame(trySet); return; }
+        const img = new Image();
+        img.onload  = () => { el.style.backgroundImage = `url("${url}")`; };
+        img.onerror = () => { console.warn('Thumb image failed to load:', url); };
+        img.src = url;
+      }
+      trySet();
+    }
+
+    /* ---------- markers + popups ---------- */
+    const activeFilters = new Set(Object.keys(CATEGORY_STYLE));
+
+    function drawDots(minYear, maxYear){
       dotLayer.clearLayers();
       featuredLayer.clearLayers();
 
       for (const p of projects){
-        if (!(p.end>=minYear && p.start<=maxYear)) continue;
+        if (!(p.end >= minYear && p.start <= maxYear)) continue;
+        if (!activeFilters.has(p.type)) continue;
 
         if (isFeatured(p)) {
           const icon = L.divIcon({ className:'thumb-pin', html:'', iconSize:[20,20], iconAnchor:[10,10] });
-          const mk = L.marker([p.lat, p.lng], { icon, zIndexOffset:1000 })
+          const mk = L.marker([p.lat, p.lng], { pane:'featuredPane', icon, zIndexOffset:1000 })
             .addTo(featuredLayer)
-            .bindPopup(
-              `<div class="popup-title"><a href="${p.url||'#'}" target="_blank" rel="noopener noreferrer">${p.name}</a></div>`+
-              `<small>${p.start}${p.start!==p.end?'–'+p.end:''} • ${p.type}</small>`
-            );
-          mk.on('add', () => {
-            const el = mk.getElement();
-            if (el) el.style.backgroundImage = `url("${FEATURED_IMAGES[p.name]}")`;
-          });
-          setTimeout(() => {
-            const el = mk.getElement();
-            if (el && !el.style.backgroundImage) el.style.backgroundImage = `url("${FEATURED_IMAGES[p.name]}")`;
-          }, 0);
-          if (p.url) mk.on('dblclick',()=>window.open(p.url,'_blank','noopener,noreferrer'));
+            .bindPopup(popupHtml(p));
+          applyThumbBackground(mk, FEATURED_IMAGES[p.name]);
+          setTimeout(() => applyThumbBackground(mk, FEATURED_IMAGES[p.name]), 0);
         } else {
-          const [lat,lng] = jitterLatLng(p.lat,p.lng,100);
           const sty = CATEGORY_STYLE[p.type] || CATEGORY_STYLE["D-wall"];
-          L.circleMarker([lat, lng], {
+          L.circleMarker([p.lat, p.lng], {
             pane:'dotPane', radius:7, weight:1, color:sty.stroke, fillColor:sty.fill, fillOpacity:0.98
           })
           .addTo(dotLayer)
-          .bindPopup(
-            `<div class="popup-title"><a href="${p.url||'#'}" target="_blank" rel="noopener noreferrer">${p.name}</a></div>`+
-            `<small>${p.start}${p.start!==p.end?'–'+p.end:''} • ${p.type}</small>`
-          )
-          .on('dblclick',()=>{ if (p.url) window.open(p.url,'_blank','noopener,noreferrer'); });
+          .bindPopup(popupHtml(p));
         }
       }
 
       featuredLayer.bringToFront();
       dotLayer.bringToFront();
     }
+
+    function addLegend(){
+      const Legend = L.Control.extend({
+        options:{ position:"topright" },
+        onAdd(){
+          const root = L.DomUtil.create("div","leaflet-control legend");
+
+          const instruction = L.DomUtil.create("div", "legend-instruction", root);
+          instruction.style.marginBottom = "8px";
+          instruction.style.fontSize = "12px";
+          instruction.style.color = "#374151";
+          instruction.textContent = "Click on the icons below to filter markers by type:";
+
+          const box  = L.DomUtil.create("div","legend-box", root);
+          box.innerHTML = Object.entries(CATEGORY_STYLE).map(([key, s]) =>
+            `<div class="legend-item" data-type="${key}" style="cursor:pointer;">
+               <span class="legend-swatch" style="background:${s.fill}; border:1px solid ${s.stroke}"></span>
+               <span>${s.label}</span>
+             </div>`).join("");
+
+          box.querySelectorAll('.legend-item').forEach(item => {
+            item.addEventListener('click', () => toggleFilter(item));
+          });
+
+          L.DomEvent.disableClickPropagation(root);
+          L.DomEvent.disableScrollPropagation(root);
+          return root;
+        }
+      });
+      map.addControl(new Legend());
+    }
+
+    // Company logo control (shared helper)
+    function addCompanyLogo(map) {
+      const LogoCtrl = L.Control.extend({
+        options: { position: 'bottomleft' },
+        onAdd() {
+          const div = L.DomUtil.create('div', 'leaflet-control company-brand');
+          const img = L.DomUtil.create('img', '', div);
+          img.src = './altemtech.jpg';
+          img.alt = 'Altemtech Logo';
+          return div;
+        }
+      });
+      map.addControl(new LogoCtrl());
+    }
+
+    function toggleFilter(item){
+      const type = item.dataset.type;
+      if (activeFilters.has(type)) {
+        activeFilters.delete(type);
+        item.style.opacity = 0.5;
+      } else {
+        activeFilters.add(type);
+        item.style.opacity = 1;
+      }
+      const [minYear, maxYear] = document.getElementById('yearSlider').noUiSlider.get().map(Number);
+      drawDots(minYear, maxYear);
+    }
+
+    function popupHtml(p){
+      const safeName = escapeHtml(p.name);
+      const safeType = escapeHtml(p.type);
+      const yRange = `${p.start}${p.start!==p.end ? '–'+p.end : ''}`;
+
+      const galleryUrl = (GALLERIES[p.name]) ? GALLERIES[p.name]
+        : (p.url ? `${p.url}#iLightbox[image_carousel_1]/0` : null);
+
+      const cam = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+         <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l2-3h8l2 3h3a2 2 0 0 1 2 2z"/>
+         <circle cx="12" cy="13" r="4"/></svg>`;
+
+      const mini = galleryUrl
+        ? `<a class="mini-photo-link" href="${galleryUrl}"
+              onclick="return openGallery('${galleryUrl.replace(/'/g,"\\'")}', '${safeName.replace(/'/g,"\\'")}')" 
+              title="View photos">${cam}</a>`
+        : '';
+
+      const titleLine = p.url
+        ? `<div class="popup-title"><a href="${p.url}" target="_blank" rel="noopener noreferrer">${safeName}</a></div>`
+        : `<div class="popup-title"><strong>${safeName}</strong></div>`;
+
+      return `${titleLine}<small>${yRange} • ${safeType} ${mini}</small>`;
+    }
+
+    function escapeHtml(s){
+      return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    }
+
+    /* ---------- overlay logic (locked) ---------- */
+    const overlayEl = document.getElementById('galleryOverlay');
+    const frameEl   = document.getElementById('galleryFrame');
+    const titleEl   = document.getElementById('galleryTitle');
+    const closeBtn  = document.getElementById('closeGalleryBtn');
+    const openTabBtn= document.getElementById('openInTabBtn');
+
+    function openGallery(url, title){
+      titleEl.textContent = title || 'Project Photos';
+      frameEl.src = url;
+      openTabBtn.onclick = () => window.open(url, '_blank', 'noopener,noreferrer');
+      overlayEl.style.display = 'flex';
+      document.body.style.overflow = 'hidden';
+      return false;
+    }
+    function closeGallery(){
+      frameEl.src = 'about:blank';
+      overlayEl.style.display = 'none';
+      document.body.style.overflow = '';
+    }
+    closeBtn.addEventListener('click', closeGallery);
+    overlayEl.addEventListener('click', (e)=>{ if (e.target === overlayEl) closeGallery(); });
+    window.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') closeGallery(); });
   </script>
 </body>
 </html>

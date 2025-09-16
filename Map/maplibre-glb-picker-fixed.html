@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Altemtech — 3D map (matches 2D layout)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css" />
+<style>
+  :root{
+    --panel-w: 980px;        /* width of the centered map box (match 2D) */
+    --panel-ar: 1.05;        /* aspect ratio ~ like your 2D screenshot */
+    --outside-bg: #f6f7fb;
+    --outline: #2f6bff;
+
+    /* category colors (same as your 2D) */
+    --dw-fill:#ff6a3d;  --dw-stroke:#cc4d22;
+    --pw-fill:#10b981;  --pw-stroke:#0e8967;
+    --sp-fill:#6366f1;  --sp-stroke:#4348c9;
+  }
+
+  html, body { height:100%; margin:0; background:var(--outside-bg); }
+  .wrap {
+    display:grid; place-items:center;
+    height:100%;
+  }
+  .map-panel{
+    width:min(100%, var(--panel-w));
+    aspect-ratio: var(--panel-ar);
+    background:#fff; border-radius:16px;
+    box-shadow:0 24px 60px rgba(0,0,0,.08);
+    overflow:hidden; position:relative;
+  }
+  #map{ position:absolute; inset:0; }
+  /* outline badge to mimic the 2D boundary feel */
+  .panel-border {
+    pointer-events:none; position:absolute; inset:12px; border-radius:14px;
+    outline:2px solid rgba(47,107,255,.15);
+  }
+
+  /* text-only roof label */
+  .roof-label{
+    font: 12px/1.2 system-ui,-apple-system,Segoe UI,Roboto,Arial;
+    font-weight: 600;
+    color:#1f2937;
+    white-space:nowrap; pointer-events:none;
+    text-shadow:
+      0 0 2px #fff, 0 0 2px #fff, 0 0 2px #fff,
+      0 1px 1px rgba(255,255,255,.7);
+    transform: translate(-50%, -100%);
+  }
+  .roof-dot{
+    width:8px; height:8px; border-radius:999px;
+    background:#2563eb; border:2px solid #fff;
+    box-shadow:0 2px 6px rgba(0,0,0,.35);
+    transform: translate(-50%, -50%);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <!-- map box centered like your 2D version -->
+  <div class="map-panel">
+    <div id="map"></div>
+    <div class="panel-border"></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+<script>
+const MAPTILER_KEY = "rKc28RRjX759DX5ggkzY";
+
+/* Category colors (match 2D legend) */
+const CATEGORY_STYLE = {
+  "D-wall":     { fill:getCSS('--dw-fill'), stroke:getCSS('--dw-stroke') },
+  "Pile-wall":  { fill:getCSS('--pw-fill'), stroke:getCSS('--pw-stroke') },
+  "Sheet Pile": { fill:getCSS('--sp-fill'), stroke:getCSS('--sp-stroke') }
+};
+
+/* Your projects (trimmed here – keep your full list) */
+const CURRENT_YEAR = new Date().getFullYear();
+const site = 'https://altemtech.com/portfolio-items/';
+const projects = [
+  { name:"True Digital Park (Phase II)", lat:13.685581, lng:100.611308, start:2019, end:2021, type:"D-wall",     height:55, url:site+"true-digital-park-phase-ii/" },
+  { name:"Emsphere & Emlive",           lat:13.732166, lng:100.566047, start:2018, end:2018, type:"D-wall",     height:40, url:site+"emsphere-emlive/" },
+  { name:"One City Centre (OCC)",       lat:13.743039, lng:100.546853, start:2019, end:2021, type:"D-wall",     height:90, url:site+"one-city-centre/" },
+  { name:"One Bangkok",                 lat:13.726830, lng:100.547200, start:2018, end:2021, type:"D-wall",     height:120, url:site+"one-bangkok/" },
+  { name:"140 Wireless",                lat:13.739300, lng:100.546900, start:2020, end:2020, type:"D-wall",     height:80, url:site+"140-wireless/" },
+  { name:"Muang Thai Life Assurance Head Office", lat:13.780000, lng:100.573000, start:2019, end:CURRENT_YEAR, type:"Sheet Pile", height:60, url:site+"muang-thai-life-assurance-head-office/" },
+  { name:"THE UNICORN (Phaya Thai)",    lat:13.756000, lng:100.533000, start:2018, end:CURRENT_YEAR, type:"D-wall", height:50, url:site+"the-unicorn/" },
+  { name:"Siam Square One",             lat:13.739990, lng:100.526550, start:2012, end:2012, type:"Pile-wall",  height:32, url:site+"sindhorn-midtown/" },
+  { name:"Four Seasons Private Residences Bangkok", lat:13.700803, lng:100.492336, start:2015, end:2018, type:"Pile-wall", height:85, url:site+"four-seasons-private-residence/" }
+];
+
+/* Map */
+const map = new maplibregl.Map({
+  container:'map',
+  style:`https://api.maptiler.com/maps/streets-v2/style.json?key=${MAPTILER_KEY}`,
+  center:[100.546, 13.735],
+  zoom:15.2, pitch:60, bearing:20, antialias:true
+});
+map.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+/* Helper */
+function getCSS(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+function metersPerPixelAtLat(lat, zoom){
+  const EARTH = 40075016.686; // meters
+  return EARTH * Math.cos(lat*Math.PI/180) / Math.pow(2, zoom+8);
+}
+
+/* Hide all basemap text/POI labels */
+function hideAllSymbols(){
+  const layers = map.getStyle().layers;
+  for (const l of layers){ if (l.type === 'symbol') map.setLayoutProperty(l.id, 'visibility', 'none'); }
+}
+
+/* 3D buildings */
+function addExtrusions(){
+  map.addLayer({
+    id:'bkk-buildings-3d',
+    type:'fill-extrusion',
+    source:'openmaptiles',
+    'source-layer':'building',
+    minzoom:14,
+    paint:{
+      'fill-extrusion-color':[
+        'interpolate',['linear'],['zoom'], 14,'#dfe6ee', 18,'#c8d4e5'
+      ],
+      'fill-extrusion-height':[
+        'case',['has','height'],['get','height'],
+        ['interpolate',['linear'],['zoom'],14,0,18,60]
+      ],
+      'fill-extrusion-base':[
+        'case',['has','min_height'],['get','min_height'],0
+      ],
+      'fill-extrusion-opacity':0.9
+    }
+  });
+}
+
+/* Project layers: cicles styled like the 2D map + roof labels */
+function addProjects(){
+  const fc = {
+    type:'FeatureCollection',
+    features: projects.map(p=>({
+      type:'Feature',
+      geometry:{ type:'Point', coordinates:[p.lng, p.lat] },
+      properties:{ name:p.name, type:p.type, height:p.height ?? 40, lat:p.lat, url:p.url??null }
+    }))
+  };
+  map.addSource('altemtech', { type:'geojson', data:fc });
+
+  map.addLayer({
+    id:'proj-dots',
+    type:'circle',
+    source:'altemtech',
+    paint:{
+      'circle-radius':7,
+      'circle-stroke-color':[
+        'match',['get','type'],
+        'D-wall',     getCSS('--dw-stroke'),
+        'Pile-wall',  getCSS('--pw-stroke'),
+        'Sheet Pile', getCSS('--sp-stroke'),
+        getCSS('--dw-stroke')
+      ],
+      'circle-stroke-width':1,
+      'circle-color':[
+        'match',['get','type'],
+        'D-wall',     getCSS('--dw-fill'),
+        'Pile-wall',  getCSS('--pw-fill'),
+        'Sheet Pile', getCSS('--sp-fill'),
+        getCSS('--dw-fill')
+      ]
+    }
+  });
+
+  // Text labels as HTML markers locked to roof height
+  const labels = [];
+  for (const f of fc.features){
+    const p = f.properties;
+
+    // Optional tiny dot exactly at anchor on roof (comment out if not wanted)
+    const dot = document.createElement('div'); dot.className='roof-dot';
+    new maplibregl.Marker({ element:dot, anchor:'center' })
+      .setLngLat(f.geometry.coordinates).addTo(map);
+
+    const el = document.createElement('div'); el.className='roof-label'; el.textContent = p.name;
+    if (p.url){ el.style.cursor='pointer'; el.addEventListener('dblclick',()=> window.open(p.url,'_blank','noopener,noreferrer')); }
+    const marker = new maplibregl.Marker({ element:el, anchor:'bottom', offset:[0,0] })
+      .setLngLat(f.geometry.coordinates).addTo(map);
+    labels.push({ lat:p.lat, height:p.height??40, marker });
+  }
+  function updateOffsets(){
+    const pitch = map.getPitch()*Math.PI/180;
+    for (const item of labels){
+      const mpp = metersPerPixelAtLat(item.lat, map.getZoom());
+      const pxUp = (item.height + 6) / mpp;
+      item.marker.setOffset([0, -(pxUp * Math.cos(pitch))]);
+    }
+  }
+  updateOffsets();
+  map.on('move',updateOffsets);
+  map.on('zoom',updateOffsets);
+  map.on('pitch',updateOffsets);
+  map.on('rotate',updateOffsets);
+}
+
+/* Bangkok boundary (fill + outline) + fit like 2D with padding for your UI */
+async function addBangkokBoundaryAndFit(){
+  const gj = await fetch('bangkok-districts.geojson').then(r=>r.json());
+  // normalize to a FeatureCollection
+  const fc = (gj.type==='FeatureCollection') ? gj : { type:'FeatureCollection', features:[gj] };
+
+  // Union all parts so we can get one bounding geometry (best-effort)
+  let merged = fc.features[0];
+  for (let i=1;i<fc.features.length;i++){ try{ merged = turf.union(merged, fc.features[i]); }catch(e){} }
+
+  // Add source/layers
+  map.addSource('bkk', { type:'geojson', data: merged });
+  map.addLayer({
+    id:'bkk-fill',
+    type:'fill',
+    source:'bkk',
+    paint:{ 'fill-color':'#2f6bff', 'fill-opacity':0.06 }
+  });
+  map.addLayer({
+    id:'bkk-outline',
+    type:'line',
+    source:'bkk',
+    paint:{ 'line-color': getCSS('--outline'), 'line-width': 2 }
+  });
+
+  // Fit like the 2D: leave space for the left slider (≈ 260px) and right legend (≈ 160px)
+  const bounds = turf.bbox(merged);
+  map.fitBounds([[bounds[0],bounds[1]],[bounds[2],bounds[3]]], {
+    padding: { top: 40, left: 260, right: 160, bottom: 40 },
+    animate: false
+  });
+}
+
+/* Boot */
+map.on('load', async ()=>{
+  hideAllSymbols();
+  addExtrusions();
+  addProjects();
+  await addBangkokBoundaryAndFit();
+});
+</script>
+</body>
+</html>
