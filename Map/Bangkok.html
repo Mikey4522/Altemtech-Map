@@ -151,6 +151,7 @@
       "Sheet Pile": { fill:"#6366f1", stroke:"#4348c9", label:"Sheet Pile" }
     };
 
+    /* Optional per-project galleries / featured thumbs */
     const GALLERIES = { };
     const FEATURED_IMAGES = {
       "One City Centre (OCC)": "OCC.png",
@@ -162,25 +163,31 @@
 
     const CURRENT_YEAR = new Date().getFullYear();
     const site = 'https://altemtech.com/portfolio-items/';
+
+    /* ------------ PROJECTS (Bangkok-only set) ------------ */
     const projects = [
-      { name:"True Digital Park (Phase II)", lat:13.685581, lng:100.611308, start:2019, end:2021, type:"D-wall",     url:site+"true-digital-park-phase-ii/" },
-      { name:"Emsphere & Emlive",           lat:13.732166, lng:100.566047, start:2018, end:2018, type:"D-wall",     url:site+"emsphere-emlive/" },
-      { name:"One City Centre (OCC)",       lat:13.743039, lng:100.546853, start:2019, end:2021, type:"D-wall",     url:site+"one-city-centre/" },
-      { name:"One Bangkok",                 lat:13.726830, lng:100.546200, start:2018, end:2021, type:"D-wall",     url:site+"one-bangkok/" },
-      { name:"140 Wireless",                lat:13.739300, lng:100.546900, start:2020, end:2020, type:"D-wall",     url:site+"140-wireless/" },
-      { name:"The New National Parliament House", lat:13.796000, lng:100.517000, start:2014, end:2016, type:"Pile-wall",  url:site+"the-new-national-parliament-house/" },
-      { name:"BITEC (Bangna)",              lat:13.669170, lng:100.606700, start:2011, end:2014, type:"Pile-wall",  url:site+"bitec/" },
-      { name:"TPP Healthcare International",lat:13.721886, lng:100.556262, start:2018, end:2019, type:"D-wall",     url:site+"tpp-healthcare-international-hospital/" },
-      { name:"Terminal 21 (Asok)",          lat:13.737000, lng:100.560600, start:2008, end:2009, type:"D-wall",     url:site+"terminal-21/" },
-      { name:"Siam Square One",             lat:13.744000, lng:100.534000, start:2012, end:2012, type:"Pile-wall",  url:site+"sindhorn-midtown/" },
-      { name:"Rosewood Hotel Bangkok",      lat:13.744640, lng:100.548640, start:2015, end:2016, type:"D-wall",     url:site+"rosewood-bangkok/" },
-      { name:"Muang Thai Life Assurance Head Office", lat:13.780000, lng:100.573000, start:2019, end:CURRENT_YEAR, type:"Sheet Pile", url:site+"muang-thai-life-assurance-head-office/" },
-      { name:"THE UNICORN (Phaya Thai)",    lat:13.756000, lng:100.533000, start:2018, end:CURRENT_YEAR, type:"D-wall", url:site+"the-unicorn/" },
-      { name:"MRT Connection (Samyan)",     lat:13.734000, lng:100.529000, start:2019, end:2019, type:"Sheet Pile", url:site+"mrt-connection-samyan/" },
-      { name:"UOB Head Office (Sathon)",    lat:13.720448, lng:100.527311, start:2018, end:CURRENT_YEAR, type:"D-wall", url:site+"uob-head-office/" },
-      { name:"Sindhorn Midtown",            lat:13.741388, lng:100.542920, start:2016, end:2017, type:"D-wall",     url:site+"sindhorn-midtown/" },
-      { name:"Four Seasons Private Residences Bangkok", lat:13.705800, lng:100.513400, start:2015, end:2018, type:"Pile-wall", url:site+"four-seasons-private-residence/" },
-      { name:"Carpark Shrewsbury (Riverside)", lat:13.709720, lng:100.509170, start:2018, end:2018, type:"D-wall", url:"https://altemtech.com/portfolio-items/%E0%B8%AD%E0%B8%B2%E0%B8%84%E0%B8%B2%E0%B8%A3%E0%B9%8C%E0%B8%88%E0%B8%AD%E0%B8%94%E0%B8%A3%E0%B8%96%E0%B9%82%E0%B8%A3%E0%B8%87%E0%B9%80%E0%B8%A3%E0%B8%B5%E0%B8%A2%E0%B8%99%E0%B8%99%E0%B8%B2%E0%B8%99%E0%B8%B2/?lang=th" }
+      { name:"True Digital Park (Phase II)", lat:13.685581, lng:100.611308, start:2019, end:2021, type:"D-wall", url:"https://altemtech.com/portfolio-items/true-digital-park-phase-ii/" },
+      { name:"WHIZDOM 101 (TRUE DIGITAL PARK)", lat:13.688900, lng:100.609500, start:2017, end:2018, type:"Pile-wall", url:"https://altemtech.com/portfolio-items/whizdom-101/" },
+      { name:"Emsphere & Emlive",           lat:13.732166, lng:100.566047, start:2018, end:2021, type:"D-wall", url:"https://altemtech.com/portfolio-items/emsphere-emlive/" },
+      { name:"One City Centre (OCC)",       lat:13.743039, lng:100.546853, start:2019, end:2021, type:"D-wall", url:"https://altemtech.com/portfolio-items/one-city-centre/" },
+      { name:"One Bangkok",                 lat:13.726830, lng:100.546200, start:2018, end:2021, type:"D-wall", url:"https://altemtech.com/portfolio-items/one-bangkok/" },
+      { name:"140 Wireless",                lat:13.739300, lng:100.546900, start:2020, end:2021, type:"Pile-wall", url:"https://altemtech.com/portfolio-items/140-wireless/" },
+      { name:"The New National Parliament House", lat:13.796000, lng:100.517000, start:2014, end:2016, type:"Pile-wall", url:"https://altemtech.com/portfolio-items/the-new-national-parliament-house/" },
+      { name:"BITEC (Bangna)",              lat:13.669170, lng:100.606700, start:2012, end:2013, type:"Pile-wall", url:"https://altemtech.com/portfolio-items/bitec/" },
+      { name:"TPP Healthcare International Hospital", lat:13.721886, lng:100.556262, start:2018, end:2019, type:"D-wall", url:"https://altemtech.com/portfolio-items/tpp-healthcare-international-hospital/" },
+      { name:"Terminal 21 (Asok)",          lat:13.737000, lng:100.560600, start:2008, end:2009, type:"D-wall", url:"https://altemtech.com/portfolio-items/terminal-21-asok/" },
+      { name:"Rosewood Hotel Bangkok",      lat:13.744640, lng:100.548640, start:2015, end:2016, type:"D-wall", url:"https://altemtech.com/portfolio-items/rosewood-bangkok/" },
+      { name:"Muang Thai Life Assurance Head Office", lat:13.780000, lng:100.573000, start:2019, end:2019, type:"Sheet Pile", url:"https://altemtech.com/portfolio-items/muang-thai-life-assurance-head-office/" },
+      { name:"THE UNICORN (Phaya Thai)",    lat:13.756000, lng:100.533000, start:2018, end:2019, type:"D-wall", url:"https://altemtech.com/portfolio-items/the-unicorn/" },
+      { name:"MRT Connection (Samyan)",     lat:13.734000, lng:100.529000, start:2019, end:2019, type:"Sheet Pile", url:"https://altemtech.com/portfolio-items/mrt-connection-samyan/" },
+      { name:"UOB Head Office (Sathon)",    lat:13.720448, lng:100.527311, start:2018, end:2019, type:"D-wall", url:"https://altemtech.com/portfolio-items/uob-head-office/" },
+      { name:"Sindhorn Midtown",            lat:13.741388, lng:100.542920, start:2016, end:2017, type:"D-wall", url:"https://altemtech.com/portfolio-items/sindhorn-midtown/" },
+      { name:"Four Seasons Private Residences Bangkok", lat:13.705800, lng:100.513400, start:2015, end:2018, type:"Pile-wall", url:"https://altemtech.com/portfolio-items/four-seasons-private-residence/" },
+      { name:"Siam Square One",             lat:13.744000, lng:100.534000, start:2012, end:2013, type:"Pile-wall", url:"https://altemtech.com/portfolio-items/siam-square-one/" },
+      { name:"Carpark Shrewsbury (Riverside)", lat:13.709720, lng:100.509170, start:2018, end:2018, type:"D-wall", url:"https://altemtech.com/portfolio-items/%E0%B8%AD%E0%B8%B2%E0%B8%84%E0%B8%B2%E0%B8%A3%E0%B9%8C%E0%B8%88%E0%B8%AD%E0%B8%94%E0%B8%A3%E0%B8%96%E0%B9%82%E0%B8%A3%E0%B8%87%E0%B9%80%E0%B8%A3%E0%B8%B5%E0%B8%A2%E0%B8%99%E0%B8%99%E0%B8%B2%E0%B8%99%E0%B8%B2/?lang=th" },
+      { name:"KS Rama III",                 lat:13.701500, lng:100.492600, start:2017, end:2020, type:"Sheet Pile", url:"https://altemtech.com/portfolio-items/ks-rama-iii/" },
+      { name:"TBCR",                        lat:13.686100, lng:100.595600, start:2018, end:2020, type:"Sheet Pile", url:"https://altemtech.com/portfolio-items/tbcr/" },
+      { name:"NEW MINISTRY OF FINANCE",     lat:13.780900, lng:100.536600, start:2017, end:2018, type:"Sheet Pile", url:"https://altemtech.com/portfolio-items/%E0%B8%81%E0%B8%A3%E0%B8%B0%E0%B8%97%E0%B8%A3%E0%B8%A7%E0%B8%87%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%84%E0%B8%A5%E0%B8%B1%E0%B8%87%E0%B9%81%E0%B8%AB%E0%B9%88%E0%B8%87%E0%B9%83%E0%B8%AB%E0%B8%A1%E0%B9%88/" }
     ];
 
     /* ---------- map + outline ---------- */
@@ -199,6 +206,7 @@
     const dotLayer = L.layerGroup().addTo(map);
     const featuredLayer = L.layerGroup().addTo(map);
 
+    /* Districts + mask/outlines */
     fetch('bangkok-districts.geojson')
       .then(r => r.json())
       .then(bkkDistricts => {
@@ -248,7 +256,7 @@
 
         addYearControl();
         addLegend();
-        addCompanyLogo(map); // <-- consistent logo placement
+        addCompanyLogo(map); // keep logo placement
         initFilter();
       });
 
@@ -305,13 +313,6 @@
       drawDots(dataMin,dataMax);
     }
 
-    function jitterLatLng(lat,lng,meters=100){
-      const t=Math.random(), phi=(Math.sqrt(5)-1)/2, angle=2*Math.PI*(t/phi);
-      const r=meters*(0.3+0.7*Math.random());
-      const dLat=(r/111320)*Math.cos(angle), dLng=(r/(111320*Math.cos(lat*Math.PI/180)))*Math.sin(angle);
-      return [lat+dLat, lng+dLng];
-    }
-
     function applyThumbBackground(marker, url){
       function trySet(){
         const el = marker.getElement();
@@ -366,7 +367,7 @@
           instruction.style.marginBottom = "8px";
           instruction.style.fontSize = "12px";
           instruction.style.color = "#374151";
-          instruction.textContent = "Click on the icons below to filter markers by type:";
+          instruction.textContent = "Click to filter markers by type:";
 
           const box  = L.DomUtil.create("div","legend-box", root);
           box.innerHTML = Object.entries(CATEGORY_STYLE).map(([key, s]) =>
@@ -387,7 +388,7 @@
       map.addControl(new Legend());
     }
 
-    // Company logo control (shared helper)
+    // Company logo control
     function addCompanyLogo(map) {
       const LogoCtrl = L.Control.extend({
         options: { position: 'bottomleft' },
